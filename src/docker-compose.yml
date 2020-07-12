@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+
+    data:
+        container_name: sqlserver
+        image: mcr.microsoft.com/mssql/server:2019-latest
+        ports: 
+            - "1434:1433"
+        environment:
+            - ACCEPT_EULA=Y
+            - SA_PASSWORD=yourStrongPassword12!@
+        volumes: 
+            - sqldata:/var/opt/mssql 
+        networks: 
+            - eshop-network
+    
+    identity:
+        container_name: identity
+        build:
+            context: .
+            dockerfile: ./Services/Identity.API/Dockerfile
+        ports: 
+            - "8002:443"
+            - "8003:80"
+        environment:
+            - ASPNETCORE_URLS=https://+:443;http://+:80
+            - ASPNETCORE_Kestrel__Certificates__Default__Password=testistest
+            - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/identity.pfx ##dotnet dev-certs https -ep .aspnet\identity\https\identity.pfx -p testistest
+            - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=eShopOnSteroidsIdentity;User Id=sa; Password=yourStrongPassword12!@;MultipleActiveResultSets=true
+        restart: on-failure
+        volumes:
+            - ./.aspnet/identity/https:/https:ro
+            - ./.aspnet/identity/DataProtection-Keys:/root/.aspnet/DataProtection-Keys
+        networks: 
+            - eshop-network
+        depends_on:
+            - data
+
+    gateway:
+        container_name: gateway
+        build:
+            context: .
+            dockerfile: ./ApiGateways/Web.Shopping.HttpAggregator/Dockerfile
+        ports: 
+            - "8000:80"
+        restart: on-failure
+        volumes:
+            - ./.aspnet/gateway/DataProtection-Keys:/root/.aspnet/DataProtection-Keys
+        networks: 
+            - eshop-network
+
+    spa:
+        container_name: spa
+        build:
+            context: .
+            dockerfile: ./Web/WebSPA/Dockerfile
+        ports: 
+            - "5001:80"
+        restart: on-failure
+        volumes:
+            - ./.aspnet/spa/DataProtection-Keys:/root/.aspnet/DataProtection-Keys
+        networks: 
+            - eshop-network
+
+networks:
+    eshop-network:
+
+volumes:
+    sqldata:
